@@ -18,8 +18,10 @@
 #define FTP_READY 220
 #define FTP_USER_OK 331
 #define FTP_LOGIN_OK 230
+#define FTP_COMMAND_OK 200
 #define FTP_PASSIVE 227
 #define FTP_TRANSFER_START 150
+#define FTP_TRANSFER_START_ALT 125 
 #define FTP_TRANSFER_COMPLETE 226
 #define FTP_FILE_OK 250
 
@@ -38,31 +40,28 @@ typedef struct {
     char message[MAX_RESPONSE];
 } FTPResponse;
 
-/**
- * URL parsing functions
- */
+
+// URL parsing functions
 int parseURL(const char *url, URL *urlInfo);
 
-/**
- * DNS and socket functions
- */
+
+// DNS and socket functions
 int getIPFromHost(const char *host, char *ip);
 int createSocket(const char *ip, int port);
 
-/**
- * FTP protocol functions
- */
+
+// FTP protocol functions
 int readFTPResponse(int sockfd, FTPResponse *response);
 int sendFTPCommand(int sockfd, const char *command, const char *arg);
 int ftpConnect(const char *ip, int port);
 int ftpLogin(int sockfd, const char *user, const char *password);
+int ftpSetBinaryMode(int sockfd);
 int ftpPassive(int sockfd, char *ip, int *port);
 int ftpRetrieve(int sockfd, const char *path);
 int ftpQuit(int sockfd);
 
-/**
- * File download functions
- */
+
+// File download functions
 int downloadFile(int sockfd, const char *filename);
 int performDownload(const char *url);
 

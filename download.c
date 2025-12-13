@@ -1,11 +1,9 @@
 #include "download.h"
 
-/**
- * Parse FTP URL in format: ftp://[<user>:<password>@]<host>/<url-path>
- * Returns 0 on success, -1 on failure
- */
+ // Parse FTP URL in format: ftp://[<user>:<password>@]<host>/<url-path>
+
 int parseURL(const char *url, URL *urlInfo) {
-    // Initialize with defaults
+    // Init with defaults
     strcpy(urlInfo->user, "anonymous");
     strcpy(urlInfo->password, "anonymous@");
     memset(urlInfo->host, 0, sizeof(urlInfo->host));
@@ -17,7 +15,7 @@ int parseURL(const char *url, URL *urlInfo) {
         return -1;
     }
     
-    const char *ptr = url + 6; // Skip "ftp://"
+    const char *ptr = url + 6; // Skip ftp://
     char temp[1024];
     strcpy(temp, ptr);
     
@@ -67,14 +65,13 @@ int parseURL(const char *url, URL *urlInfo) {
     return 0;
 }
 
-/**
- * Get IP address from hostname using DNS (based on getip.c)
- * Returns 0 on success, -1 on failure
- */
+
+// Get IP address from hostname using DNS (based on getip.c)
+
 int getIPFromHost(const char *host, char *ip) {
     struct hostent *h;
     
-    printf("Resolving hostname '%s'...\n", host);
+    printf("Resolving hostname '%s'\n", host);
     
     if ((h = gethostbyname(host)) == NULL) {
         herror("gethostbyname()");
@@ -87,25 +84,26 @@ int getIPFromHost(const char *host, char *ip) {
     return 0;
 }
 
-/**
- * Create a TCP socket and connect to server (based on clientTCP.c)
- * Returns socket file descriptor on success, -1 on failure
- */
+// Create a TCP socket and connect to server (based on clientTCP.c)
+// Returns socket file descriptor on success
+
 int createSocket(const char *ip, int port) {
-    int sockfd;
+    // Socket file descriptor
+    int sockfd; 
     struct sockaddr_in server_addr;
     
-    // Open TCP socket
+    // Create TCP socket
+    // IPv4, TCP
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         perror("socket()");
         return -1;
     }
     
-    // Server address handling
+    // Configure server address
     bzero((char *) &server_addr, sizeof(server_addr));
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = inet_addr(ip);
-    server_addr.sin_port = htons(port);
+    server_addr.sin_family = AF_INET;               // IPv4
+    server_addr.sin_addr.s_addr = inet_addr(ip);    // Server IP
+    server_addr.sin_port = htons(port);             // Server port
     
     // Connect to server
     if (connect(sockfd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
@@ -117,13 +115,9 @@ int createSocket(const char *ip, int port) {
     return sockfd;
 }
 
-/**
- * Read FTP response from server
- * Handles both single-line and multi-line responses
- * Multi-line: "XXX-..." followed by "XXX ..."
- * Single-line: "XXX ..."
- * Returns 0 on success, -1 on failure
- */
+
+//Handles both single line and multi line responses
+ 
 int readFTPResponse(int sockfd, FTPResponse *response) {
     char byte;
     int i = 0;
@@ -135,9 +129,10 @@ int readFTPResponse(int sockfd, FTPResponse *response) {
     
     memset(response->message, 0, MAX_RESPONSE);
     
-    // Read response character by character
+    // Read data from socket one byte at a time
     while (1) {
         if (read(sockfd, &byte, 1) <= 0) {
+            // Connection error or closed
             return -1;
         }
         
@@ -157,19 +152,19 @@ int readFTPResponse(int sockfd, FTPResponse *response) {
                 code[3] = '\0';
                 gotCode = 1;
                 
-                // Check if multi-line response (code followed by '-')
+                // Check if multi line response (code followed by '-')
                 if (line[3] == '-') {
                     multiline = 1;
                 }
             }
             
-            // Check if this is the final line
+            // Check if this is final line
             if (gotCode) {
                 if (!multiline) {
-                    // Single-line response complete
+                    // Single line response complete
                     break;
                 } else if (lineIndex >= 4 && strncmp(line, code, 3) == 0 && line[3] == ' ') {
-                    // Multi-line response complete (code followed by space)
+                    // Multi line response complete (code followed by space)
                     break;
                 }
             }
@@ -192,10 +187,10 @@ int readFTPResponse(int sockfd, FTPResponse *response) {
     return 0;
 }
 
-/**
- * Send FTP command to server
- * Returns number of bytes written, -1 on failure
- */
+
+//  Send FTP command to server
+//  Returns number of bytes written
+
 int sendFTPCommand(int sockfd, const char *command, const char *arg) {
     char buffer[MAX_LENGTH];
     
@@ -207,6 +202,7 @@ int sendFTPCommand(int sockfd, const char *command, const char *arg) {
     
     printf("Sending FTP command: %s", buffer);
     
+    // Write data to the socket
     int bytes = write(sockfd, buffer, strlen(buffer));
     if (bytes < 0) {
         perror("write()");
@@ -216,39 +212,36 @@ int sendFTPCommand(int sockfd, const char *command, const char *arg) {
     return bytes;
 }
 
-/**
- * Connect to FTP server
- * Returns socket file descriptor on success, -1 on failure
- */
+
+//Connect to FTP server
+// Returns socket file descriptor
+
 int ftpConnect(const char *ip, int port) {
     FTPResponse response;
     
-    printf("Connecting to FTP server %s:%d...\n", ip, port);
+    printf("Connecting to %s:%d\n", ip, port);
     
     int sockfd = createSocket(ip, port);
     if (sockfd < 0) {
-        fprintf(stderr, "Failed to connect to server\n");
         return -1;
     }
     
-    // Read welcome message (220)
     if (readFTPResponse(sockfd, &response) < 0 || response.code != FTP_READY) {
-        fprintf(stderr, "Failed to receive welcome message\n");
+        fprintf(stderr, "Failed to connect to server\n");
         close(sockfd);
         return -1;
     }
     
+    printf("Connected successfully\n");
     return sockfd;
 }
 
-/**
- * Login to FTP server with username and password
- * Returns 0 on success, -1 on failure
- */
+ // Login to FTP server with username and password
+ 
 int ftpLogin(int sockfd, const char *user, const char *password) {
     FTPResponse response;
     
-    printf("Logging in as '%s'...\n", user);
+    printf("Logging in as '%s'\n", user);
     
     // Send USER command
     if (sendFTPCommand(sockfd, "USER", user) < 0) {
@@ -289,14 +282,39 @@ int ftpLogin(int sockfd, const char *user, const char *password) {
     return 0;
 }
 
-/**
- * Enter passive mode and get data connection info
- * Returns 0 on success, -1 on failure
- */
+
+// Set binary transfer mode (TYPE I)
+
+int ftpSetBinaryMode(int sockfd) {
+    FTPResponse response;
+    
+    printf("Setting binary mode\n");
+    
+    // Send TYPE I command
+    if (sendFTPCommand(sockfd, "TYPE", "I") < 0) {
+        return -1;
+    }
+    
+    if (readFTPResponse(sockfd, &response) < 0) {
+        return -1;
+    }
+    
+    if (response.code != FTP_COMMAND_OK) {
+        fprintf(stderr, "Failed to set binary mode: %d\n", response.code);
+        return -1;
+    }
+    
+    printf("Binary mode enabled\n");
+    return 0;
+}
+
+
+// Enter passive mode and get data connection info
+
 int ftpPassive(int sockfd, char *ip, int *port) {
     FTPResponse response;
     
-    printf("Entering passive mode...\n");
+    printf("Entering passive mode\n");
     
     // Send PASV command
     if (sendFTPCommand(sockfd, "PASV", NULL) < 0) {
@@ -312,7 +330,7 @@ int ftpPassive(int sockfd, char *ip, int *port) {
         return -1;
     }
     
-    // Parse PASV response: 227 Entering Passive Mode (h1,h2,h3,h4,p1,p2)
+    // Parse PASV response: 227 Entering Passive Mode
     int ip1, ip2, ip3, ip4, port1, port2;
     char *start = strchr(response.message, '(');
     if (start == NULL) {
@@ -333,14 +351,13 @@ int ftpPassive(int sockfd, char *ip, int *port) {
     return 0;
 }
 
-/**
- * Send RETR command to retrieve file
- * Returns 0 on success, -1 on failure
- */
+
+// Send RETR command to retrieve file
+
 int ftpRetrieve(int sockfd, const char *path) {
     FTPResponse response;
     
-    printf("Requesting file '%s'...\n", path);
+    printf("Requesting file '%s'\n", path);
     
     // Send RETR command
     if (sendFTPCommand(sockfd, "RETR", path) < 0) {
@@ -351,7 +368,8 @@ int ftpRetrieve(int sockfd, const char *path) {
         return -1;
     }
     
-    if (response.code != FTP_TRANSFER_START) {
+    // Accept both 150 and 125 as valid transfer starting codes
+    if (response.code != FTP_TRANSFER_START && response.code != FTP_TRANSFER_START_ALT) {
         fprintf(stderr, "Failed to start transfer: %d\n", response.code);
         return -1;
     }
@@ -360,21 +378,17 @@ int ftpRetrieve(int sockfd, const char *path) {
     return 0;
 }
 
-/**
- * Send QUIT command to close connection
- * Returns 0 on success, -1 on failure
- */
+
+// Send QUIT command to close connection
+
 int ftpQuit(int sockfd) {
-    printf("Closing connection...\n");
+    printf("Closing connection\n");
     sendFTPCommand(sockfd, "QUIT", NULL);
     close(sockfd);
     return 0;
 }
 
-/**
- * Download file from data connection and save to disk
- * Returns 0 on success, -1 on failure
- */
+
 int downloadFile(int sockfd, const char *filename) {
     FILE *file;
     char buffer[MAX_LENGTH];
@@ -389,7 +403,7 @@ int downloadFile(int sockfd, const char *filename) {
         name = filename;
     }
     
-    printf("Saving file as '%s'...\n", name);
+    printf("Saving file as '%s'\n", name);
     
     file = fopen(name, "wb");
     if (file == NULL) {
@@ -415,10 +429,9 @@ int downloadFile(int sockfd, const char *filename) {
     return 0;
 }
 
-/**
- * Main download function - orchestrates the entire FTP download process
- * Returns 0 on success, -1 on failure
- */
+
+// Main download function
+
 int performDownload(const char *url) {
     URL urlInfo;
     int controlSocket = -1;
@@ -426,29 +439,25 @@ int performDownload(const char *url) {
     char dataIP[16];
     int dataPort;
     FTPResponse response;
-    // int result = 0;
     
     printf("=== FTP Download Application ===\n");
     printf("URL: %s\n\n", url);
     
-    // Step 1: Parse URL
-    printf("Phase 1: Parsing URL...\n");
+    printf("Phase 1: Parsing URL\n");
     if (parseURL(url, &urlInfo) < 0) {
         fprintf(stderr, "Failed at phase: URL parsing\n");
         return -1;
     }
     printf("\n");
     
-    // Step 2: DNS Resolution
-    printf("Phase 2: DNS Resolution...\n");
+    printf("Phase 2: DNS Resolution\n");
     if (getIPFromHost(urlInfo.host, urlInfo.ip) < 0) {
         fprintf(stderr, "Failed at phase: DNS resolution\n");
         return -1;
     }
     printf("\n");
     
-    // Step 3: Connect to FTP server
-    printf("Phase 3: Connecting to FTP server...\n");
+    printf("Phase 3: Connecting to FTP server\n");
     controlSocket = ftpConnect(urlInfo.ip, FTP_PORT);
     if (controlSocket < 0) {
         fprintf(stderr, "Failed at phase: Connection\n");
@@ -456,8 +465,7 @@ int performDownload(const char *url) {
     }
     printf("\n");
     
-    // Step 4: Login
-    printf("Phase 4: Login...\n");
+    printf("Phase 4: Login\n");
     if (ftpLogin(controlSocket, urlInfo.user, urlInfo.password) < 0) {
         fprintf(stderr, "Failed at phase: Login\n");
         ftpQuit(controlSocket);
@@ -465,8 +473,15 @@ int performDownload(const char *url) {
     }
     printf("\n");
     
-    // Step 5: Enter passive mode
-    printf("Phase 5: Entering passive mode...\n");
+    printf("Phase 5: Setting binary mode\n");
+    if (ftpSetBinaryMode(controlSocket) < 0) {
+        fprintf(stderr, "Failed at phase: Binary mode\n");
+        ftpQuit(controlSocket);
+        return -1;
+    }
+    printf("\n");
+    
+    printf("Phase 6: Entering passive mode\n");
     if (ftpPassive(controlSocket, dataIP, &dataPort) < 0) {
         fprintf(stderr, "Failed at phase: Passive mode\n");
         ftpQuit(controlSocket);
@@ -474,8 +489,7 @@ int performDownload(const char *url) {
     }
     printf("\n");
     
-    // Step 6: Open data connection
-    printf("Phase 6: Opening data connection...\n");
+    printf("Phase 7: Opening data connection\n");
     dataSocket = createSocket(dataIP, dataPort);
     if (dataSocket < 0) {
         fprintf(stderr, "Failed at phase: Data connection\n");
@@ -484,8 +498,8 @@ int performDownload(const char *url) {
     }
     printf("Data connection established\n\n");
     
-    // Step 7: Send RETR command
-    printf("Phase 7: Requesting file...\n");
+    // Step 8: Send RETR command
+    printf("Phase 8: Requesting file\n");
     if (ftpRetrieve(controlSocket, urlInfo.path) < 0) {
         fprintf(stderr, "Failed at phase: File retrieval request\n");
         close(dataSocket);
@@ -494,8 +508,8 @@ int performDownload(const char *url) {
     }
     printf("\n");
     
-    // Step 8: Download file
-    printf("Phase 8: Downloading file...\n");
+    // Step 9: Download file
+    printf("Phase 9: Downloading file\n");
     if (downloadFile(dataSocket, urlInfo.path) < 0) {
         fprintf(stderr, "Failed at phase: File download\n");
         close(dataSocket);
@@ -513,8 +527,8 @@ int performDownload(const char *url) {
         fprintf(stderr, "Warning: Unexpected response after transfer\n");
     }
     
-    // Step 9: Quit
-    printf("Phase 9: Closing connection...\n");
+    // Step 10: Quit
+    printf("Phase 10: Closing connection\n");
     ftpQuit(controlSocket);
     
     printf("\n=== SUCCESS: File downloaded successfully ===\n");
@@ -522,13 +536,10 @@ int performDownload(const char *url) {
     return 0;
 }
 
-/**
- * Main function
- */
+
 int main(int argc, char *argv[]) {
     if (argc != 2) {
-        fprintf(stderr, "Usage: %s ftp://[<user>:<password>@]<host>/<url-path>\n", argv[0]);
-        fprintf(stderr, "Example: %s ftp://ftp.netlab.fe.up.pt/pub/file.txt\n", argv[0]);
+        printf("Incorrect number of argments. Try again.\n");
         exit(-1);
     }
     
